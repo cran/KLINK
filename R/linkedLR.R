@@ -27,6 +27,7 @@
 #'
 #' @export
 linkedLR = function(pedigrees, linkageMap, markerData = NULL, mapfun = "Kosambi") {
+  if (getOption("KLINK.debug")) print("linkedLR")
 
   if(is.null(markerData))
     markerData = markerSummary(pedigrees, linkageMap)
@@ -63,7 +64,11 @@ linkedLR = function(pedigrees, linkageMap, markerData = NULL, mapfun = "Kosambi"
 
   # No-mutation versions
   pedsNomut = lapply(pedigrees, function(x) setMutmod(x, model = NULL))
-  LRnomut = forrel::kinshipLR(pedsNomut, markers = res$Marker)$LRperMarker[,1]
+  LRnomut = forrel::kinshipLR(pedsNomut, markers = res$Marker)$LRperMarker[, 1]
+
+  # Fix lost names when only 1 marker
+  if(is.null(names(LRnomut)))
+    names(LRnomut) = res$Marker
 
   # Split linkage groups
   pairs = split(res, res$Pair)
@@ -95,6 +100,7 @@ linkedLR = function(pedigrees, linkageMap, markerData = NULL, mapfun = "Kosambi"
 
 
 .linkedLR = function(peds, markerpair, cmpos, mapfun, disableMut = FALSE) {
+  if (getOption("KLINK.debug")) print(paste(".linkedLR:", paste(markerpair, collapse = ", ")))
   if(length(markerpair) < 2)
     return(NA_real_)
 

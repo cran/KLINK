@@ -1,3 +1,36 @@
+# KLINK 0.7.2
+
+* Internal reorganisation, moving the Shiny code to `inst/shiny/app.R`.
+
+* `launchApp()` is now the main launching function, with `runKLINK()` as an alias.
+
+* Fixes a minor regression error in the previous version.
+
+
+# KLINK 0.7.1
+
+* New button "Mask" for downloading a masked version of the dataset.
+
+* Reading/writing .fam files is now handled by the new package `pedFamilias()`, which has been split out from `forrel`.
+
+* Added R option `KLINK.debug` which can be set to TRUE for debugging (only when running KLINK from R). 
+
+* Use (experimental) `autoScale` option in pedigree plots.
+
+* Minor internal tweaks and bug fixes.
+
+
+# KLINK 0.7.0
+
+* Although KLINK is primarily a Shiny app, the package now documents and exports the main functions, enabling analysis in R as well.
+
+* Added new dataset `paternity`, with simulated data for a paternity case (including a mutation).
+
+* Improved formatting in output Excel document.
+
+* Simplified code in sync with recent pedsuite updates. The plots may appear slightly modified.
+
+
 # KLINK 0.6.1
 
 * First CRAN release.

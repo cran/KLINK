@@ -1,3 +1,8 @@
+stop2 = function(...) {
+  a = lapply(list(...), toString)
+  a = append(a, list(call. = FALSE))
+  do.call(stop, a)
+}
 
 foldLabs = function(x, width = 10) {
   labs = unlist(labels(x), use.names = FALSE)
@@ -20,7 +25,12 @@ safelog = function(v) {
   res
 }
 
-
 `%||%` = function(x, y) {
   if(is.null(x)) y else x
 }
+
+setnames = function(x, nms) {
+  names(x) = nms
+  x
+}
+
