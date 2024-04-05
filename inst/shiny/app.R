@@ -44,7 +44,7 @@ ui = dashboardPage(title = "KLINK",
   body = dashboardBody(
 
    tags$head(
-       tags$style(HTML("
+    tags$style(HTML("
         #hideEmptyCheck .checkbox {position:absolute; right:5px; top:5px; margin:0px; padding:0px;}
         #shiny-notification-panel {top:20%; left:30%; width:100%; max-width:580px;font-size:20px;}
         .shiny-notification {opacity:1}
@@ -57,8 +57,21 @@ ui = dashboardPage(title = "KLINK",
         #notificationMenu .dropdown-menu > li .menu > li > a {white-space:normal !important;}
         .form-group.shiny-input-container {margin-bottom:0px}
         .progress {margin-bottom:0px}
-    "))),
-   tags$head(includeHTML(system.file("shiny/www/GA.html", package = "KLINK"))),
+        .wait-cursor { cursor: wait !important; }
+    ")),
+
+    tags$script(HTML("
+      Shiny.addCustomMessageHandler('waitCursor', function(message) {
+        if(message) {
+          $('body').addClass('wait-cursor');
+        } else {
+          $('body').removeClass('wait-cursor');
+        }
+      });
+    ")),
+
+    includeHTML(system.file("shiny/www/GA.html", package = "KLINK"))
+   ),
 
    fluidRow(
      column(width = 4,
@@ -87,11 +100,12 @@ ui = dashboardPage(title = "KLINK",
      ),
    ),
    p("This is KLINK version", VERSION, "(",
-     a("changelog", href = "https://github.com/magnusdv/klink/blob/master/NEWS.md", target="_blank", .noWS = "outside"), ").",
+     a("changelog", href = "https://github.com/magnusdv/KLINK/blob/master/NEWS.md", target="_blank", .noWS = "outside"), " | ",
+     a("official releases", href = "https://github.com/magnusdv/KLINK/releases", target="_blank", .noWS = "outside"), ").",
      "If you find something that isn't working properly, please file a ",
-     a("bug report", href = "https://github.com/magnusdv/klink/issues", target="_blank", .noWS = "outside"),
+     a("bug report", href = "https://github.com/magnusdv/KLINK/issues", target="_blank", .noWS = "outside"),
      ". For more information about the R packages on which KLINK is based, see the",
-     a("ped suite", href = "https://magnusdv.github.io/pedsuite", target="_blank"), "homepage.")
+     a("pedsuite", href = "https://magnusdv.github.io/pedsuite", target="_blank"), "homepage.")
    )
 )
 
@@ -209,7 +223,11 @@ server = function(input, output, session) {
   observeEvent(input$compute, {
     if (getOption("KLINK.debug")) print("compute LR")
     ped = req(pedigrees$reduced)
+
+    session$sendCustomMessage(type = 'waitCursor', message = TRUE)
     res = KLINK::linkedLR(ped, linkageMap(), markerData(), mapfun = input$mapfunction)
+    session$sendCustomMessage(type = 'waitCursor', message = FALSE)
+
     resultTable(res)
     updateTabsetPanel(session, "tabs", selected = "LR table")
   })

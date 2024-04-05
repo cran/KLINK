@@ -1,3 +1,18 @@
+# KLINK 0.7.3
+
+* Update **pedprobr** version to 0.9.3, giving much faster likelihood calculations in many cases.
+
+* Show wait cursor during LR calculations.
+
+* Use scientific format also for small LR totals in-app.
+
+* Unlinked report: Prioritise D5S2500 over D5S2800 if both are present, and similarly D10S2325 over D10S1435, and D19S253 over D19S433 (reverses previous behaviour).
+
+* Fix typos in built-in linkage map.
+
+* Fix outdated mutation model in dataset `paternity`.
+
+
 # KLINK 0.7.2
 
 * Internal reorganisation, moving the Shiny code to `inst/shiny/app.R`.
