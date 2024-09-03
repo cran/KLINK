@@ -1,6 +1,6 @@
 Package: KLINK
 Title: Kinship Analysis with Linked Markers
-Version: 1.0.1
+Version: 1.0.2
 Authors@R: 
     person("Magnus Dehli", "Vigeland", , "m.d.vigeland@medisin.uio.no", role = c("aut", "cre"),
     comment = c(ORCID = "0000-0002-9134-4962"))
@@ -23,9 +23,9 @@ Language: en-GB
 LazyData: true
 RoxygenNote: 7.3.2
 NeedsCompilation: no
-Packaged: 2024-08-19 11:30:05 UTC; magnu
+Packaged: 2024-09-03 07:42:20 UTC; magnu
 Author: Magnus Dehli Vigeland [aut, cre]
     (<https://orcid.org/0000-0002-9134-4962>)
 Maintainer: Magnus Dehli Vigeland <m.d.vigeland@medisin.uio.no>
 Repository: CRAN
-Date/Publication: 2024-08-19 11:50:07 UTC
+Date/Publication: 2024-09-03 08:50:07 UTC
