@@ -6,20 +6,20 @@
 #' closest markers on each chromosome.
 #'
 #' @param markers A character vector containing marker names.
-#' @param linkageMap A data frame with columns including `Marker`, `Chrom` and
-#'   `PosCM`.
+#' @param linkageMap A data frame with columns including `Marker`, `Chr` and
+#'   `cM`.
 #' @param maxdist A positive number indicating the maximum linkage distance (in
 #'   cM). Markers further apart than this are considered unlinked.
 #'
 #' @return A list of character vectors, each containing two marker names.
 #'
 #' @examples
-#' # Example using the built-in map of 50 STR markers
-#' map = KLINK::LINKAGEMAP
+#' # Example using the default map of 50 STR markers
+#' map = norSTR::map50
 #'
 #' getLinkedPairs(map$Marker, map, maxdist = 25)
 #' @export
-getLinkedPairs = function(markers, linkageMap, maxdist = Inf) {
+getLinkedPairs = function(markers, linkageMap = map50, maxdist = Inf) {
   if(is.null(markers))
     markers = linkageMap$Marker
 
@@ -27,11 +27,12 @@ getLinkedPairs = function(markers, linkageMap, maxdist = Inf) {
   if(!length(markers) || is.null(linkageMap))
     return(res)
 
-  x = linkageMap[linkageMap$Marker %in% markers, , drop = FALSE]
+  idx = matchMarkernames(linkageMap$Marker, markers, nomatch = 0)
+  x = linkageMap[idx > 0, , drop = FALSE]
 
-  for(i in unique.default(x$Chrom)) {
-    xi = x[x$Chrom == i, , drop = FALSE]
-    idxList = closestPairs(xi$PosCM, maxdist = maxdist)
+  for(i in unique.default(x$Chr)) {
+    xi = x[x$Chr == i, , drop = FALSE]
+    idxList = closestPairs(xi$cM, maxdist = maxdist)
     idxList = idxList[order(sapply(idxList, sum))] # sort in order
     resi = lapply(idxList, function(idx) xi$Marker[idx])
     res = c(res, resi)

@@ -10,6 +10,7 @@
 #' @param notes A character vector.
 #' @param outfile The output file name.
 #' @param famname The name of the input `.fam` file.
+#' @param hideEmpty A logical, indicating if untyped markers should be dropped.
 #' @param settings A list of KLINK settings to be included in the output
 #' @param XML Optional data from .xml file.
 #'
@@ -19,11 +20,11 @@
 #' \donttest{
 #' # Built-in dataset `paternity`
 #' peds = paternity
-#' map = LINKAGEMAP
+#' map = norSTR::map50
 #' mdata = markerSummary(peds)
 #'
 #' # Result table
-#' LRtab = linkedLR(pedigrees = peds, linkageMap = map, markerData = mdata)
+#' LRtab = linkedLR(pedigrees = peds, linkageMap = map, markerData = mdata, verbose = FALSE)
 #'
 #' # Write to excel
 #' tmp = paste0(tempfile(), ".xlsx")
@@ -37,17 +38,18 @@
 #' }
 #' @export
 writeResult = function(resultTable, pedigrees, linkageMap, markerData,
-                       outfile, notes = NULL, famname = NULL,
+                       outfile, notes = NULL, famname = NULL, hideEmpty = FALSE,
                        settings = NULL, XML = NULL) {
 
-  LRtable = outputLRcomplete(resultTable)
+  LRtable = outputLRcomplete(resultTable, hide = hideEmpty)
 
   sheets = list("Linkage map" = linkageMap,
-                "Marker data" = markerData %||% "No marker data loaded",
+                "Marker data" = outputMdata(markerData, hide = hideEmpty),
                 "LR table" = LRtable,
                 Notifications = outputNotes(notes),
                 "Full report" = NULL,
-                "Unlinked report" = NULL)
+                "Unlinked report" = NULL,
+                Plots = NULL)
 
   hs = createStyle(textDecoration = "bold")
   wb = buildWorkbook(sheets, headerStyle = hs, colWidths = "auto")
@@ -56,6 +58,9 @@ writeResult = function(resultTable, pedigrees, linkageMap, markerData,
     saveWorkbook(wb, file = outfile)
     return()
   }
+
+  # Pedigree sheet
+  writePlots(wb, "Plots", pedigrees)
 
   ped1 = pedigrees[[1]]
   resNms = names(resultTable)
@@ -95,7 +100,38 @@ writeResult = function(resultTable, pedigrees, linkageMap, markerData,
   addUnlinkedColumn(wb, LRtable, reportUnl, hs = hs)
 
   activeSheet(wb) = "Full report"
-  saveWorkbook(wb, file = outfile, overwrite = T)
+  saveWorkbook(wb, file = outfile, overwrite = TRUE)
+}
+
+outputMdata = function(markerData, hide = FALSE) {
+  if(is.null(markerData))
+    return("No marker data loaded")
+
+  if(hide)
+    markerData = markerData[markerData$Typed > 0, , drop = FALSE]
+
+  markerData$Typed = NULL
+  markerData
+}
+
+#' @importFrom grDevices png dev.off
+writePlots = function(wb, sheet, peds) {
+  fil1 = tempfile(fileext = ".png")
+  fil2 = tempfile(fileext = ".png")
+
+  png(fil1, width = 4.5, height = 3.5, units = "in", res = 300)
+  plotPed(peds[[1]], cex = 1, title = "Ped 1", margins = c(1,2,3,2))
+  graphics::box("outer")
+  dev.off()
+
+  png(fil2, width = 4.5, height = 3.5, units = "in", res = 300)
+  plotPed(peds[[2]], cex = 1, title = "Ped 2", margins = c(1,2,3,2))
+  graphics::box("outer")
+  dev.off()
+
+  # Write to Excel
+  insertImage(wb, "Plots", file = fil1, width = 4.5, height = 3.5, startRow = 3, startCol = 2)
+  insertImage(wb, "Plots", file = fil2, width = 4.5, height = 3.5, startRow = 21, startCol = 2)
 }
 
 writeReportSheet = function(wb, sheet, report, pedigrees, famname, nameKeys,
@@ -106,8 +142,7 @@ writeReportSheet = function(wb, sheet, report, pedigrees, famname, nameKeys,
 
   # Styling utility
   addSt = function(rows, cols, stack = TRUE, ...) {
-    style = createStyle(...)
-    addStyle(wb, sheet, style, rows = rows, cols = cols,
+    addStyle(wb, sheet, style = createStyle(...), rows = rows, cols = cols,
              gridExpand = TRUE, stack = stack)
   }
 
@@ -193,21 +228,19 @@ writeReportSheet = function(wb, sheet, report, pedigrees, famname, nameKeys,
   setColWidths(wb, sheet, legendCl + 0:1, "auto")
 }
 
-outputLRcomplete = function(resultTable) {
+outputLRcomplete = function(resultTable, hide = FALSE) {
   if(is.null(res <- resultTable))
     return()
 
+  if(hide)
+    res = res[res$Typed > 0, , drop = FALSE]
+
   LRcols = c("LRnolink",	"LRlinked",	"LRnomut")
   res[res$Gindex > 1, LRcols] = NA
-  res$Gindex = res$Gsize = NULL
+  res$Gindex = res$Gsize = res$Typed = NULL
 
-  # add totals row
-  res = rbind(res, NA)
-  res[nrow(res), LRcols] = apply(res[LRcols], 2, prod, na.rm = TRUE)
-  res[nrow(res), 1] = "Total LR"
-
-  # Return
-  res
+  # Add totals
+  addTotals(res, LRcols)
 }
 
 
@@ -217,35 +250,27 @@ outputLRreport = function(resultTable, gcols, AMEL = NULL) {
   # Remove missing & handle linkage pairs
   res = removeMissing(resultTable, gcols)
 
-  # Mute single-LR column for unlinked markers
-  res$LRsingle[res$Gsize == 1] = NA
+  # Mute LRsingle for unlinked markers, and round
+  res$LRsingle = ifelse(res$Gsize == 1, NA_character_, sprintf("%.3f", res$LRsingle))
 
   # Prepare merge
   res$LRlinked[res$Gindex > 1] = NA
 
-  # Total (to be added below)
-  total = prod(res$LRlinked, na.rm = TRUE)
-
   # Select columns
-  res$Idx = 1:nrow(res)
-  res = res[c("Idx", "Marker", gcols, "LRlinked", "LRsingle")]
-  names(res)[names(res) == "LRlinked"] = "LR"
+  nr = nrow(res)
+  res = cbind(Idx = 1:nr, res["Marker"], res[gcols], LR = res$LRlinked, res["LRsingle"])
 
   # Change allele separators to "-"
   res[gcols] = lapply(res[gcols], \(x) sub("/", "-", x))
 
-  # Round to 3 decimals
-  res$LR = ifelse(is.na(res$LR), NA_character_, sprintf("%.3f", res$LR))
-  res$LRsingle = ifelse(is.na(res$LRsingle), NA_character_, sprintf("%.3f", res$LRsingle))
+  # Add LR total
+  res = addTotals(res, "LR")
 
-  # Add total
-  res = rbind(res, NA)
-  res$Marker[nrow(res)] = "Total LR"
-  res$LR[nrow(res)] = sprintf("%.4g", total)
+  # Round
+  res$LR = c(sprintf("%.3f", res$LR[1:nr]), sprintf("%.4g", res$LR[nr+1])) |> fixNA()
 
-  # Add AMEL?
-  if(!is.null(AMEL))
-    res = addAMEL(res, AMEL)
+  # Add AMEL if given
+  res = addAMEL(res, AMEL)
 
   # Fix names
   names(res)[c(1,ncol(res))] = ""
@@ -272,28 +297,20 @@ outputLRunlinked = function(resultTable, gcols, AMEL = NULL, pic) {
   if(nr == 0)
     return("No markers to report")
 
-  # Columns
-  res$Idx = 1:nrow(res)
-  res = res[c("Idx", "Marker", gcols, "LRsingle")]
-  names(res)[ncol(res)] = "LR"
-
-  # Total (to be added below)
-  total = prod(res$LR, na.rm = TRUE)
+  # Columns¨
+  res = cbind(Idx = 1:nr, res["Marker"], res[gcols], LR = res$LRsingle)
 
   # Change allele separator to "-"
   res[gcols] = lapply(res[gcols], \(x) sub("/", "-", x))
 
-  # Round to 3 decimals
-  res$LR = ifelse(is.na(res$LR), NA_character_, sprintf("%.3f", res$LR))
+  # Add totals
+  res = addTotals(res, "LR")
 
-  # Add totals row
-  res = rbind(res, NA)
-  res$Marker[nrow(res)] = "Total LR"
-  res$LR[nrow(res)] = sprintf("%.4g", total)
+  # Round
+  res$LR = c(sprintf("%.3f", res$LR[1:nr]), sprintf("%.4g", res$LR[nr+1])) |> fixNA()
 
-  # Add AMEL?
-  if(!is.null(AMEL))
-    res = addAMEL(res, AMEL)
+  # Add AMEL if given
+  res = addAMEL(res, AMEL)
 
   names(res)[1] = ""
   rownames(res) = NULL
@@ -304,8 +321,8 @@ outputLRunlinked = function(resultTable, gcols, AMEL = NULL, pic) {
 
 
 # Removes markers with no data after sorting. (Ensures same order in both REFA reports.)
-removeMissing = function(resTable, gcols) {
-  res = resTable
+removeMissing = function(restab, gcols) {
+  res = restab
 
   # Identify markers with missing data
   res$miss = apply(res, 1, function(v) all(v[gcols] == "-/-"))
@@ -313,6 +330,9 @@ removeMissing = function(resTable, gcols) {
   # Incomplete pairs ...
   miss2 = res$miss & res$Gsize == 2
   incomp = res$Pair %in% unique(res$Pair[miss2])
+
+  # TODO: Is this still necessary?
+  if(any(miss2)) message("Download message: Yes, incomplete pairs are still handled")
 
   # ... convert to singlepoint
   if(any(miss2)) {
@@ -328,6 +348,8 @@ removeMissing = function(resTable, gcols) {
 
 
 addAMEL = function(report, AMEL) {
+  if(is.null(AMEL))
+    return(report)
   amelRow = c(NA, "AMELOGENIN", AMEL)
   length(amelRow) = ncol(report)
   names(amelRow) = names(report)
@@ -369,7 +391,7 @@ getIdLegend = function(nameKeys) {
 
 getRelLegend = function(pedigrees, ids) {
   if(length(ids) != 2)
-    return(data.frame(Relationship = "No output (only for 2 individuals)"))
+    return(data.frame(Relationship = "No output (only for 2 individuals)", row.names = " "))
 
   rels = lapply(pedigrees, function(ped) {
     s = verbalisr::verbalise(ped, ids) |>
@@ -383,18 +405,19 @@ getRelLegend = function(pedigrees, ids) {
 
 getNoteLegend = function(notes) {
   data.frame("Notifications " = notes %||% "No notifications recorded",
-             check.names = FALSE)
+             check.names = FALSE,
+             row.names = if(is.null(notes)) " " else seq_along(notes))
 }
 
 getSettingsLegend = function(settings) {
   if(is.null(settings))
-    return(data.frame("Settings " = "No settings included", check.names = FALSE))
+    return(data.frame("Settings " = "No settings included", row.names = " ", check.names = FALSE))
 
   # A few tweaks
   if(!is.null(dist <- settings[["Max distance"]]))
     settings[["Max distance"]] = paste(dist, "cM")
 
-  if(identical(settings[["Genetic map"]], "LINKAGEMAP"))
+  if(identical(settings[["Genetic map"]], "map50"))
     settings[["Genetic map"]] = "Built-in"
 
   # Convert to data frame
@@ -405,9 +428,7 @@ getSettingsLegend = function(settings) {
 
 addUnlinkedColumn = function(wb, LRtable, reportUnl, hs = NULL) {
   lrs = setnames(reportUnl$LR, reportUnl$Marker)
-  newcol = lrs[LRtable$Marker]
-  newcol[length(newcol)] = lrs["Total LR"]
-  df = data.frame("LR.unl.report" = newcol)
+  df = data.frame("LR.unl.report" = as.character(lrs[LRtable$Marker]))
 
   # Insert two columns away
   sheet = "LR table"

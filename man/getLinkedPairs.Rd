@@ -4,13 +4,13 @@
 \alias{getLinkedPairs}
 \title{Identify linked marker pairs}
 \usage{
-getLinkedPairs(markers, linkageMap, maxdist = Inf)
+getLinkedPairs(markers, linkageMap = map50, maxdist = Inf)
 }
 \arguments{
 \item{markers}{A character vector containing marker names.}
 
-\item{linkageMap}{A data frame with columns including \code{Marker}, \code{Chrom} and
-\code{PosCM}.}
+\item{linkageMap}{A data frame with columns including \code{Marker}, \code{Chr} and
+\code{cM}.}
 
 \item{maxdist}{A positive number indicating the maximum linkage distance (in
 cM). Markers further apart than this are considered unlinked.}
@@ -25,8 +25,8 @@ The pairs are identified in a greedy manner, successively choosing the
 closest markers on each chromosome.
 }
 \examples{
-# Example using the built-in map of 50 STR markers
-map = KLINK::LINKAGEMAP
+# Example using the default map of 50 STR markers
+map = norSTR::map50
 
 getLinkedPairs(map$Marker, map, maxdist = 25)
 }

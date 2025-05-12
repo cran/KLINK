@@ -1,3 +1,51 @@
+# KLINK 1.1.0
+
+## New features
+
+* Added new datasets `sibship` and `halfsib`. In the app, these are available as `Example1` and `Example2`, respectively.
+
+* The default genetic map, previously built-in to KLINK, has been moved to the **norSTR** package under the name `map50`, and is now imported from there.
+
+* KLINK now employs the *special lumping* methods recently implemented in **pedprobr** and **pedmut**. This permits the use of complex mutation models (e.g. `Stepwise`) in most common pedigrees, including paternity and full/half siblings. In larger pedigrees, nonlumpable models are replaced with the simpler 'Equal' model.
+
+* The **LR table** shown in the app has a new look, now using the same layout and marker order as the other tables. 
+The "LR table" sheet of the Excel download also uses this marker order. 
+*Note*: The *Report* sheets has not changed.
+
+* New app controls `Empty markers` (hide/show) and `Likelihoods` (hide/show/loglik) for the LR table in the app and the Excel download.
+
+* New app control `Decimals` for setting the number of decimals in displayed tables.
+
+* Inconsistent marker names are handled more gracefully. For instance, `Penta D`, `Penta.D`, `PentaD`, `PENTA D` are now recognised as the same marker (similarly for other markers, notably `Penta E` and `vWA`).
+
+* The `Marker data` table now excludes unused mutation model columns (app only).
+
+* The Excel download includes a new sheet, `Plots`, containing the two pedigree plots.
+
+* Added tooltips explaining app controls and table columns.
+
+* Busy-indicator: A pulsating effect is now shown when the app is busy.
+
+* Renamed columns in the linkage map: `Chrom` -> `Chr` and `PosCM` -> `cM`. When loading custom maps, variations of these names are accepted.
+
+* Only on shinyapp.io: Show banner warning about uploading sensitive data.
+
+
+## Minor changes and fixes
+
+* Empty the `.xml` field when a new `.fam` file is loaded.
+
+* RStudio now stops the app when the user closes the browser.
+
+* Graceful handling of input without data.
+
+* The `Marker map` control has been moved up to the `Input` app region.
+
+* Fixed a bug appearing when the input file contains an unmapped single marker.
+
+* Fixed a bug giving slightly incorrect LR values in some cases when a stepwise mutation model was used. This bug was related to lumping, which is now handled differently (see entry under `New features`).
+
+
 # KLINK 1.0.2
 
 * Fixed bug affecting download when XML initials contain hyphens.
@@ -55,7 +103,7 @@ This version is a major update of both the KLINK package and the shiny app.
 
 * New button "Mask" for downloading a masked version of the dataset.
 
-* Reading/writing .fam files is now handled by the new package `pedFamilias()`, which has been split out from `forrel`.
+* Reading/writing `.fam` files is now handled by the new package `pedFamilias()`, which has been split out from `forrel`.
 
 * Added R option `KLINK.debug` which can be set to TRUE for debugging (only when running KLINK from R). 
 

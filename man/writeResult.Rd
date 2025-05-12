@@ -12,6 +12,7 @@ writeResult(
   outfile,
   notes = NULL,
   famname = NULL,
+  hideEmpty = FALSE,
   settings = NULL,
   XML = NULL
 )
@@ -31,6 +32,8 @@ writeResult(
 
 \item{famname}{The name of the input \code{.fam} file.}
 
+\item{hideEmpty}{A logical, indicating if untyped markers should be dropped.}
+
 \item{settings}{A list of KLINK settings to be included in the output}
 
 \item{XML}{Optional data from .xml file.}
@@ -43,11 +46,11 @@ various LR tables.
 \donttest{
 # Built-in dataset `paternity`
 peds = paternity
-map = LINKAGEMAP
+map = norSTR::map50
 mdata = markerSummary(peds)
 
 # Result table
-LRtab = linkedLR(pedigrees = peds, linkageMap = map, markerData = mdata)
+LRtab = linkedLR(pedigrees = peds, linkageMap = map, markerData = mdata, verbose = FALSE)
 
 # Write to excel
 tmp = paste0(tempfile(), ".xlsx")
