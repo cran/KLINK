@@ -30,13 +30,36 @@ ui = dashboardPage(title = "KLINK",
   ),
 
   sidebar = dashboardSidebar(
-    fluidRow(style = "padding: 5px 15px 0px 15px",
-             column(6, h4(HTML("<b>INPUT</b>"), style = "margin-bottom: 0px")),
-             column(6, align = "right",
-                    actionButton("reset",  "RESET",  class = "btn-sm btn-warning",
-                                  style = "font-weight:bolder; padding:0px 8px; margin: 8px 0px 0px 0px;")),
+
+    tags$div(
+      style = "display:flex; justify-content:space-between; align-items:center; padding:5px 15px 0 15px; margin-top:10px;",
+      h4(HTML("<b>INPUT</b>"), style = "margin:0;"),
+      tags$div(
+        style = "display:flex; align-items:center; gap:15px;",
+        actionButton("reset", "RESET", class = "btn-sm btn-warning", style = "font-weight:bolder; padding:0 8px; margin:0;"),
+        helpButton("inputHelp")
+      )
     ),
-    tags$div(class = "loadfile", fileInput("famfile", "Load .fam file", buttonLabel = icon("folder-open"), accept = ".fam")),
+    tags$div(class = "loadfile",
+             fileInput("famfile", "Familias .fam file", buttonLabel = icon("folder-open"), accept = ".fam")),
+
+    tags$div(class = "loadfile",
+             fileInput("xmlfile", "Optional .xml file", buttonLabel = icon("folder-open"), accept = ".xml")),
+
+    fluidRow(style = "padding: 0px 15px 0px 15px",
+      column(6, actionButton("loadex1",  "Example 1", class = "btn btn-success",
+                             style = "padding: 1px 8px; margin: 8px 0px 0px 0px; background-color:#90ee90")),
+      column(6, align = "right", actionButton("loadex2",  "Example 2", class = "btn btn-success",
+                                              style = "padding: 1px 8px; margin: 8px 0px 0px 0px; background-color:#90ee90"))
+    ),
+
+    hr(),
+
+    tags$div(
+      style = "display:flex; justify-content:space-between; align-items:center; padding:0 15px; margin:0;",
+      h4(HTML("<b>SETTINGS</b>"), style = "margin:0;"),
+      helpButton("settingsHelp")
+    ),
 
     radioButtons("maptype", "Marker map", inline = TRUE, width = "100%",
                  choices = c("Built-in" = "map50", "Custom" = "custom")),
@@ -46,25 +69,30 @@ ui = dashboardPage(title = "KLINK",
                 accept = c("text/tab-separated-values", "text/plain", ".txt", ".map"))
     ),
 
-    tags$div(class = "loadfile", fileInput("xmlfile", "(Optional) .xml", buttonLabel = icon("folder-open"), accept = ".xml")),
-
-    fluidRow(style = "padding: 0px 15px 0px 15px",
-      column(6, actionButton("loadex1",  "Example 1", class = "btn btn-success", style = "padding: 1px 8px; margin: 8px 0px 0px 0px; background-color:#90ee90")),
-      column(6, align = "right", actionButton("loadex2",  "Example 2", class = "btn btn-success", style = "padding: 1px 8px; margin: 8px 0px 0px 0px; background-color:#90ee90"))
-    ),
-    hr(),
-    h4(HTML("<b>SETTINGS</b>"), style = "padding-left:15px; margin-bottom: 0px; margin-top: 0px"),
     radioButtons("mapfunction", "Map function", choices = c("Kosambi", "Haldane"),
                  selected = "Kosambi", inline = TRUE),
+    radioButtons("mutmod", "Mutation model", choices = c("Original", "Simple", "Off"),
+                 selected = "Original", inline = TRUE),
+    bsTooltip("mutmod",
+              "Global mutation model setting"),
     radioButtons("emptymarkers", "Empty markers", inline = TRUE, width = "100%",
                  choices = c("Hide" = "hide", "Show" = "show"), selected = "hide"),
     bsTooltip("emptymarkers",
-              "Hide or show markers with no genotype information. (Affects the 'LR table' in the app and in the Excel download.)"),
+              "Hide or show markers with no genotype information."),
     radioButtons("likelihoods", "Likelihoods", inline = TRUE, width = "100%",
                  choices = c("Hide" = "hide", "Show" = "show", "Loglik" = "loglik"), selected = "hide"),
-    bsTooltip("likelihoods", "Hide or show likelihood columns? (Only affects the 'LR table' in the app.)"),
-    numericInput("decimals", label = "Decimals", value = 3, min = 1, step = 1),
-    numericInput("maxdist", label = "Ignore linkage above (cM)", value = 200, min = 0, step = 5),
+    bsTooltip("likelihoods", "Hide or show (log-)likelihood columns."),
+    div(id = "numrow",
+        style = "display:flex; gap:15px; padding:10px 15px 0 15px;",
+      div(style = "flex:1;",
+          numericInput("decimals", "Decimals", value = 3, min = 1, step = 1, width = "100%"),
+          bsTooltip("decimals", "Number of decimals to show in tables.")
+      ),
+      div(style = "flex:1;",
+          numericInput("maxdist", "Unlinked > cM", value = NA, min = 0, step = 5, width = "100%"),
+          bsTooltip("maxdist", "Markers farther apart than this are treated as unlinked.")
+      )
+    ),
     hr(),
     div(style = "margin-top:20px;padding-right:30px",
         actionButton("compute", "Calculate LR", width = "100%", class = "btn-lg btn-danger",
@@ -151,7 +179,7 @@ server = function(input, output, session) {
 
   # Main reactive variables
   famfile = reactiveValues(famname = NULL, params = NULL)
-  pedigrees = reactiveValues(complete = NULL, reduced = NULL, active = NULL)
+  pedigrees = reactiveValues(complete = NULL, reduced = NULL, plot = NULL, active = NULL)
   XML = reactiveVal(NULL)
   NOTES = reactiveVal(NULL)
 
@@ -160,7 +188,9 @@ server = function(input, output, session) {
   # Error utility
   showNote = function(..., type = "error") {
     debug("showNote")
-    showNotification(HTML(paste(..., sep = "<br>")), duration = NULL, type = type)
+    msg = paste(..., sep = "<br>")
+    msg = gsub("\n", "<br>", msg)
+    showNotification(HTML(msg), duration = NULL, type = type)
     invisible(NULL)
   }
 
@@ -287,11 +317,15 @@ server = function(input, output, session) {
   })
 
   observeEvent(pedigrees$complete, {
-    debug("Set reduced/active")
+    debug("updates derived pedigrees")
     peds = pedigrees$complete
     pedred = KLINK:::removeEmpty(peds)
     pedigrees$reduced = pedred
-    pedigrees$active = if(input$hideEmptyComps) pedred else peds
+    pedigrees$plot = if(input$hideEmptyComps) pedred else peds
+    pedigrees$active = switch(input$mutmod,
+                              Original = pedred,
+                              Simple = lapply(pedred, \(x) pedtools::setMutmod(x, model = "equal", rate = 0.001)),
+                              Off = lapply(pedred, \(x) pedtools::setMutmod(x, model = NULL)))
     resultTable(NULL)
 
     # Update dropdown marker list
@@ -306,14 +340,14 @@ server = function(input, output, session) {
 
   observeEvent(input$showmarker, {
     if(input$showmarker == "(none)") {
-      markers = c("Marker" = "",  "(none)", pedtools::name(pedigrees$complete[[1]]))
+      markers = c("Marker" = "",  "(none)", pedtools::name(pedigrees$plot[[1]]))
       updateSelectInput(session, "showmarker", choices = markers)
     }
   })
 
   output$pedplot1 = renderPlot({
     debug("plot1")
-    ped1 = req(pedigrees$active[[1]])
+    ped1 = req(pedigrees$plot[[1]])
     m = input$showmarker
     if(m == "Marker") m = NULL
     KLINK:::plotPed(ped1, marker = selectedMarker(), cex = 1.2)
@@ -321,14 +355,26 @@ server = function(input, output, session) {
 
   output$pedplot2 = renderPlot({
     debug("plot2")
-    ped2 = req(pedigrees$active[[2]])
+    ped2 = req(pedigrees$plot[[2]])
     m = input$showmarker
     if(m == "Marker") m = NULL
     KLINK:::plotPed(ped2, marker = selectedMarker(), cex = 1.2)
   }, execOnResize = TRUE)
 
   observeEvent(input$hideEmptyComps, {
-    pedigrees$active = if(input$hideEmptyComps) pedigrees$reduced else pedigrees$complete
+    pedigrees$plot = if(input$hideEmptyComps) pedigrees$reduced else pedigrees$complete
+  })
+
+
+  # Mutation model ------------------------------------------------------------------------------
+
+  # Update the active pedigree when the mutation setting changes
+  observeEvent(input$mutmod, {
+    pedred = pedigrees$reduced |> req() # without empty components
+    pedigrees$active = switch(input$mutmod,
+                              Original = pedred,
+                              Simple = lapply(pedred, \(x) pedtools::setMutmod(x, model = "equal", rate = 0.001)),
+                              Off = lapply(pedred, \(x) pedtools::setMutmod(x, model = NULL)))
   })
 
 
@@ -349,7 +395,7 @@ server = function(input, output, session) {
   # Compute LR
   observeEvent(input$compute, {
     debug("compute LR")
-    peds = req(pedigrees$reduced)
+    peds = req(pedigrees$active)
 
     if(is.null(linkageMap()))
       return(showNote("No marker map has been loaded."))
@@ -369,7 +415,7 @@ server = function(input, output, session) {
   })
 
   # Reset LR table
-  observe({input$mapfunction; resultTable(NULL)})
+  observe({input$mapfunction; pedigrees$active; resultTable(NULL)})
 
   # Activate download button when LR table is ready
   observeEvent(resultTable(), {
@@ -393,8 +439,10 @@ server = function(input, output, session) {
 
   markerData = reactive({
     debug("markerData")
-    if(is.null(peds <- pedigrees$complete))
+    peds = pedigrees$active
+    if(is.null(peds))
       return(NULL)
+
     mdat = KLINK::markerSummary(peds, replaceNames = is.null(XML()))
     req(mdat)
 
@@ -403,7 +451,7 @@ server = function(input, output, session) {
     mdat[ord, , drop = FALSE]
   })
 
-  observeEvent(pedigrees$complete,
+  observeEvent(pedigrees$active,
     updateTabsetPanel(session, "tabs", selected = "Marker data"))
 
   # Print loaded marker data
@@ -476,7 +524,8 @@ server = function(input, output, session) {
   # Linked pairs
   linkedPairs = reactive({
     debug("linked pairs")
-    getLinkedPairs(markerData()$Marker, linkageMap(), maxdist = req(input$maxdist))
+    maxd =  if(is.na(input$maxdist)) Inf else input$maxdist
+    getLinkedPairs(markerData()$Marker, linkageMap(), maxdist = req(maxd))
   })
 
   # Karyogram plot
@@ -508,11 +557,11 @@ server = function(input, output, session) {
                       "Genetic map" = mapname(),
                       "Database" = famfile$params$dbName %||% "unknown",
                       "Map function" = input$mapfunction,
-                      "Max distance" = input$maxdist)
+                      "Max distance" = input$maxdist %NA|% "Inf")
 
       KLINK::writeResult(
         resultTable(),
-        pedigrees = pedigrees$reduced,
+        pedigrees = pedigrees$active,
         linkageMap = linkageMapSubset(),
         markerData = markerData(),
         outfile = file,
@@ -537,16 +586,27 @@ server = function(input, output, session) {
     NOTES(NULL)
     XML(NULL)
     updateRadioButtons(session, "maptype", selected = "map50")
+    updateRadioButtons(session, "mutmod", selected = "Original")
     updateNumericInput(session, "decimals", value = 3)
-    updateNumericInput(session, "maxdist", value = 200)
+    updateNumericInput(session, "maxdist", value = NA)
     updateRadioButtons(session, "mapfunction", selected = "Kosambi")
     updateRadioButtons(session, "emptymarkers", selected = "hide")
     updateRadioButtons(session, "likelihoods", selected = "hide")
-    pedigrees$complete = pedigrees$reduced = pedigrees$active = NULL
+    pedigrees$complete = pedigrees$reduced = pedigrees$plot = pedigrees$active = NULL
     resultTable(NULL)
   })
 
+  # Help page modals-------------------------------------------------------------------------
+
+  observeEvent(input$inputHelp, {
+    showHelpModal("input.md")
+  })
+  observeEvent(input$settingsHelp, {
+    showHelpModal("settings.md")
+  })
 }
+
+
 
 # Run the application
 shinyApp(ui = ui, server = server, options = list(launch.browser = TRUE))
