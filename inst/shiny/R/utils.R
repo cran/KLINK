@@ -44,5 +44,12 @@ helpFile = function(filename) {
   if(file.exists(p))
     return(p)
 
-  stop("Help file not found: ", file)
+  stop("Help file not found: ", filename)
+}
+
+scrollGt = function(id, height = "710px") {
+  tags$div(
+    style = sprintf("max-height:max(%s, 80vh); overflow-y:auto; overflow-x:auto;", height),
+    gt::gt_output(id)
+  )
 }

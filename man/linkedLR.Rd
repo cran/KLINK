@@ -26,7 +26,7 @@ linkedLR(
 \item{linkedPairs}{A list of marker pairs. If not supplied, calculated as
 \code{getLinkedPairs(markerData$Marker, linkageMap, maxdist = maxdist)}.}
 
-\item{maxdist}{A number, passed onto \code{getLinkedMarkers()} if \code{linkedPairs} is
+\item{maxdist}{A number, passed onto \code{getLinkedPairs()} if \code{linkedPairs} is
 NULL.}
 
 \item{markerData}{A data frame with marker data, typically the output of
@@ -40,7 +40,7 @@ activated. This is strongly recommended in all cases with linked STR
 markers.}
 
 \item{alleleLimit}{A number, by default 10, passed on to
-\code{\link[pedprobr:likelihood]{pedprobr::likelihood2()}}.}
+\code{\link[pedprobr:likelihood2]{pedprobr::likelihood2()}}.}
 
 \item{verbose}{A logical, by default TRUE.}
 

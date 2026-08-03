@@ -66,7 +66,7 @@ ui = dashboardPage(title = "KLINK",
     conditionalPanel(
       condition = "input.maptype == 'custom'",
       fileInput("mapfile", NULL, buttonLabel = icon("folder-open"),
-                accept = c("text/tab-separated-values", "text/plain", ".txt", ".map"))
+                accept = c("text/tab-separated-values", "text/plain", ".txt", ".map", ".xlsx"))
     ),
 
     radioButtons("mapfunction", "Map function", choices = c("Kosambi", "Haldane"),
@@ -110,11 +110,6 @@ ui = dashboardPage(title = "KLINK",
     useBusyIndicators(spinners = FALSE, pulse = TRUE),
     busyIndicatorOptions(pulse_height = "10px"),
 
-    # Embed JS here; cannot send gmail attachment with script.js
-    tags$script(HTML("
-      window.onbeforeunload = function(){ Shiny.onInputChange('browserClosed', Math.random()); };
-    ")),
-
    fluidRow(
      column(width = 4,
             box(title = tagList("Ped 1",
@@ -136,23 +131,25 @@ ui = dashboardPage(title = "KLINK",
                       style = "position:absolute; right:10px; top:5px; margin:0px; padding:4px 8px; background:orange")),
                    tabPanel("Linkage map",
                             fluidRow(
-                              column(6, class = "col-lg-5", gt::gt_output("linkage_table")),
-                              column(6, class = "col-lg-7", plotOutput("karyo", height = "700px")) # todo:680?
+                              column(6, class = "col-lg-5", scrollGt("linkage_table", height = "710px")),
+                              column(6, class = "col-lg-7", plotOutput("karyo", height = "710px"))
                             )
                    ),
-                   tabPanel("Marker data", gt::gt_output("marker_table")),
-                   tabPanel("LR table", gt::gt_output("result_table"))
+                   tabPanel("Marker data", scrollGt("marker_table", height = "710px")),
+                   tabPanel("LR table", scrollGt("result_table", height = "710px"))
             ),
      ),
    ),
    p("This is KLINK version", VERSION, "(",
      mylink("changelog", "https://github.com/magnusdv/KLINK/blob/master/NEWS.md"), " | ",
      mylink("official releases", "https://github.com/magnusdv/KLINK/releases"), ").",
-     "If you encounter problems, please file a ",
-     mylink("bug report", "https://github.com/magnusdv/KLINK/issues"), ". See also the ",
+     "If you use KLINK in a publication, please cite ",
+     mylink("this paper", "https://doi.org/10.1016/j.fsigen.2026.103578"), ".",
+     "See also the ",
      mylink("KLINK homepage", "https://magnusdv.github.io/pedsuite/articles/web_only/klink.html"),
-     " for more information.")
-   )
+     ". Bug reports are welcome ",
+     mylink("here", "https://github.com/magnusdv/KLINK/issues"), ".")
+  )
 )
 
 
@@ -160,8 +157,12 @@ ui = dashboardPage(title = "KLINK",
 
 server = function(input, output, session) {
 
-  # Close app when browser closes
-  observeEvent(input$browserClosed, stopApp())
+  # Stop the app when the local session closes
+  session$onSessionEnded(function() {
+    host = isolate(session$clientData$url_hostname)
+    if(isTRUE(host %in% c("localhost", "127.0.0.1", "::1")))
+      stopApp()
+  })
 
   # Show banner with warning on shinyapps.io
   output$banner = renderUI({
@@ -228,7 +229,8 @@ server = function(input, output, session) {
 
     if(is.null(peddata)) {
       famfile$famname = famfile$params = NULL
-      pedigrees$complete = NULL
+      pedigrees$complete = pedigrees$reduced = pedigrees$plot = pedigrees$active = NULL
+      resultTable(NULL)
       shinyjs::reset("famfile")
       return()
     }
@@ -261,7 +263,7 @@ server = function(input, output, session) {
     xmldat = tryCatch(error = showNote, {
       if(is.null(famname))
         stop2("Familias file must be loaded first")
-      if(sub(".xml", "", fil$name) != sub(".fam", "", famname))
+      if(sub(".xml", "", fil$name, fixed = TRUE) != sub(".fam", "", famname, fixed = TRUE))
         stop2(paste("File names do not match", fil$name, famname, sep = "<br>"))
 
       dat = KLINK::parseXML(fil)
@@ -286,10 +288,10 @@ server = function(input, output, session) {
 
     # Rename using initials found in XML
     inits = xmldat$Initials
-    if(any(inits == ""))
-      warn("Warning: Missing initials in `XML` file; cannot rename individuals")
-    else if(anyDuplicated(inits))
-      warn("Warning: Duplicated initials in `XML` file; cannot rename individuals")
+    if(anyNA(inits) || any(inits == "") || anyDuplicated(inits)) {
+      warn("Warning: Missing or duplicated initials in `XML` file; cannot rename individuals")
+      xmldat$Initials = xmldat$ID
+    }
     else {
       newpeds = lapply(peds, function(ped)
         pedtools::relabel(ped, old = xmldat$ID, new = inits))
@@ -314,6 +316,7 @@ server = function(input, output, session) {
     XML(NULL)
     pedigrees$complete = KLINK::loadFamFile(path)
     famfile$famname = filename
+    famfile$params = NULL
   })
 
   observeEvent(pedigrees$complete, {
@@ -348,16 +351,12 @@ server = function(input, output, session) {
   output$pedplot1 = renderPlot({
     debug("plot1")
     ped1 = req(pedigrees$plot[[1]])
-    m = input$showmarker
-    if(m == "Marker") m = NULL
     KLINK:::plotPed(ped1, marker = selectedMarker(), cex = 1.2)
   }, execOnResize = TRUE)
 
   output$pedplot2 = renderPlot({
     debug("plot2")
     ped2 = req(pedigrees$plot[[2]])
-    m = input$showmarker
-    if(m == "Marker") m = NULL
     KLINK:::plotPed(ped2, marker = selectedMarker(), cex = 1.2)
   }, execOnResize = TRUE)
 
@@ -459,7 +458,8 @@ server = function(input, output, session) {
     debug("marker table")
     mtab = markerData()
     validate(need(!is.null(mtab), "No data has been loaded."))
-    KLINK:::prettyMarkerTable(mtab, linkedPairs(), hide = input$emptymarkers == "hide")
+    KLINK:::prettyMarkerTable(mtab, linkedPairs(), hide = input$emptymarkers == "hide",
+                              decimals = input$decimals)
   }, width = "100%", align = "left")
 
 
@@ -514,6 +514,8 @@ server = function(input, output, session) {
   linkageMapSubset = reactive({
     debug("linkage map subset")
     fullmap = linkageMap()
+    if(is.null(fullmap))
+      return(NULL)
     mdat = markerData()
     if(is.null(mdat))
       return(fullmap)
@@ -537,7 +539,9 @@ server = function(input, output, session) {
     debug("linkage map table")
     map = linkageMapSubset()
     validate(need(!is.null(map), "No marker map has been loaded."))
-    KLINK:::prettyLinkageMap(map, linkedPairs(), hide = input$emptymarkers == "hide", decimals = input$decimals)
+    KLINK:::prettyLinkageMap(map, linkedPairs(),
+                             hide = input$emptymarkers == "hide",
+                             decimals = input$decimals)
   }, width = "100%", align = "left")
 
 
@@ -547,7 +551,7 @@ server = function(input, output, session) {
   output$download = downloadHandler(
     filename = function() {
       fam = famfile$famname
-      paste0("KLINK-", if(!is.null(fam)) sub(".fam", "", fam), ".xlsx")
+      paste0("KLINK-", if(!is.null(fam)) sub(".fam", "", fam, fixed = TRUE), ".xlsx")
     },
     content = function(file) {
       debug("download")
